@@ -25,6 +25,7 @@ class PVEClient(StorageMixin, BackupMixin, TemplateMixin):
             token_name=cfg.token_id.split("!")[1],
             token_value=cfg.token_secret,
             verify_ssl=cfg.verify_ssl,
+            timeout=30,
         )
         self.node = cfg.node or self._detect_node()
 
@@ -109,9 +110,26 @@ class PVEClient(StorageMixin, BackupMixin, TemplateMixin):
             params[key] = val
         for key, val in self.cfg.mp.items():
             params[key] = val
-        if self.cfg.env:
-            params["env"] = self.cfg.env
         return self.api.nodes(self.node).lxc.create(**params)
+
+    def apply_env(self):
+        """Merge user environment variables with OCI image defaults."""
+        if not self.cfg.env:
+            return
+        print(f"  Setting environment variables ...")
+        config = self.api.nodes(self.node).lxc(self.cfg.vmid).config.get()
+        existing = config.get("env", "")
+        env_dict = {}
+        for entry in existing.split("\0"):
+            if "=" in entry:
+                k, v = entry.split("=", 1)
+                env_dict[k] = v
+        for entry in self.cfg.env.split("\0"):
+            if "=" in entry:
+                k, v = entry.split("=", 1)
+                env_dict[k] = v
+        merged = "\0".join(f"{k}={v}" for k, v in env_dict.items())
+        self.api.nodes(self.node).lxc(self.cfg.vmid).config.put(env=merged)
 
     def wait_for_task(self, upid: str, label: str = "task"):
         """Poll a Proxmox task until it completes or times out."""

@@ -36,6 +36,8 @@ def deploy_fresh(client: PVEClient, cfg: DeployConfig, ostemplate: str):
     print(f"\n[2] Container {cfg.vmid} does not exist — creating fresh ...")
     upid = client.create_fresh(ostemplate)
     client.wait_for_task(upid, label="Create")
+    client.apply_env()
+
 
     # Cleanup template after successful creation
     print(f"\n[3] Cleaning up pulled template ...")

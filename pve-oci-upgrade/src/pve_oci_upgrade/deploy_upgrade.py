@@ -60,6 +60,8 @@ def deploy_upgrade(client: PVEClient, cfg: DeployConfig, ostemplate: str):
     except Exception as e:
         print(f"  Warning: failed to re-apply some config: {e}")
 
+    client.apply_env()
+
     # Cleanup old rootfs if not purged
     if not cfg.purge_on_upgrade:
         client.cleanup_old_rootfs(config)
