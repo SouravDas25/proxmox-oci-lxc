@@ -13,5 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-pve-oci = "pve_oci_upgrade:main"
- 
+pve-oci = "pve_oci_upgrade.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
