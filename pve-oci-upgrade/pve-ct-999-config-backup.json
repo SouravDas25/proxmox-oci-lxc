@@ -1,0 +1,24 @@
+{
+  "arch": "amd64",
+  "cmode": "console",
+  "digest": "bcd0f2803226e8d6d9997933aa442b7850c4d87d",
+  "hostname": "test-alpine",
+  "rootfs": "pxpool01:vm-999-disk-0,size=8G",
+  "cores": 1,
+  "lxc": [
+    [
+      "lxc.init.cwd",
+      "/"
+    ],
+    [
+      "lxc.signal.halt",
+      "SIGTERM"
+    ]
+  ],
+  "swap": 256,
+  "env": "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+  "ostype": "alpine",
+  "unprivileged": 1,
+  "memory": 128,
+  "entrypoint": "/bin/sh"
+}

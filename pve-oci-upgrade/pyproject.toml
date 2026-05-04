@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pve-oci-upgrade"
+version = "0.1.0"
+description = "Deploy & upgrade OCI-based LXC containers on Proxmox VE 9.1+"
+requires-python = ">=3.10"
+dependencies = [
+    "proxmoxer>=2.0.0",
+    "requests>=2.28.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+pve-oci = "pve_oci_upgrade.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

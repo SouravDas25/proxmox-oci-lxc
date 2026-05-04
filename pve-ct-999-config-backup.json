@@ -1,0 +1,25 @@
+{
+  "swap": 128,
+  "entrypoint": "/docker-entrypoint.sh nginx -g 'daemon off;'",
+  "memory": 128,
+  "net0": "name=eth0,bridge=vmbr0,host-managed=1,hwaddr=BC:24:11:38:EA:05,ip=dhcp,type=veth",
+  "unprivileged": 1,
+  "cmode": "console",
+  "arch": "amd64",
+  "lxc": [
+    [
+      "lxc.init.cwd",
+      "/"
+    ],
+    [
+      "lxc.signal.halt",
+      "SIGQUIT"
+    ]
+  ],
+  "cores": 1,
+  "hostname": "test-nginx",
+  "rootfs": "pxpool01:vm-999-disk-0,size=8G",
+  "env": "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\u0000NGINX_VERSION=1.29.8\u0000PKG_RELEASE=1\u0000DYNPKG_RELEASE=1\u0000NJS_VERSION=0.9.6\u0000NJS_RELEASE=1\u0000ACME_VERSION=0.3.1",
+  "digest": "5e207d1e29fde9226cbab5d122e5cb27dd282211",
+  "ostype": "alpine"
+}
