@@ -8,7 +8,7 @@ from .config import DeployConfig
 from .deploy import deploy
 from .destroy import destroy_container
 from .manifest import DeploymentManifest, container_spec_to_deploy_config
-from .validate import validate_manifest
+from .validate import validate_manifest, validate_storage
 
 
 def apply_manifest(
@@ -31,6 +31,23 @@ def apply_manifest(
     if not manifest.containers:
         print("Warning: no containers defined — nothing to do.")
         return
+
+    # Validate storage against Proxmox before deploying
+    from proxmoxer import ProxmoxAPI
+    api = ProxmoxAPI(
+        host,
+        user=token_id.split("!")[0],
+        token_name=token_id.split("!")[1],
+        token_value=token_secret,
+        verify_ssl=verify_ssl,
+    )
+    target_node = node or api.nodes.get()[0]["node"]
+    storage_errors = validate_storage(api, target_node, manifest)
+    if storage_errors:
+        print("Storage validation errors:")
+        for e in storage_errors:
+            print(f"  - {e}")
+        sys.exit(2)
 
     total = len(manifest.containers)
     created = upgraded = failed = 0

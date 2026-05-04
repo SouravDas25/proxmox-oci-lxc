@@ -120,6 +120,14 @@ def parse_args():
     vp = sub.add_parser("validate", help="Validate a YAML configuration file")
     vp.add_argument("file", help="Path to YAML configuration file")
 
+    # -- generate subcommand ------------------------------------------------
+    gp = sub.add_parser("generate", help="Generate YAML from existing Proxmox containers")
+    gp.add_argument("-o", "--output", default="pve-containers.yml",
+                    help="Output file path (default: pve-containers.yml)")
+    gp.add_argument("--vmid", type=int, nargs="+", default=None,
+                    help="Filter by VMID(s)")
+    _add_manifest_auth_args(gp)
+
     # -- deploy subcommand --------------------------------------------------
     dp = sub.add_parser("deploy", help="Create or upgrade a container from an OCI image")
     _add_common_args(dp)
@@ -193,6 +201,28 @@ def main():
 
     if args.command == "init":
         init_credentials(args.profile)
+        return
+
+    if args.command == "generate":
+        from .manifest import AuthConfig
+        from .generate import generate_yaml, manifest_to_yaml
+        from proxmoxer import ProxmoxAPI
+
+        auth_config = AuthConfig(profile=args.profile or "default", host=args.host, node=args.node)
+        host, token_id, token_secret, node, verify_ssl = _resolve_auth_from_manifest(
+            args, auth_config)
+        api = ProxmoxAPI(
+            host,
+            user=token_id.split("!")[0],
+            token_name=token_id.split("!")[1],
+            token_value=token_secret,
+            verify_ssl=verify_ssl,
+        )
+        manifest = generate_yaml(api, node=node, vmids=args.vmid)
+        output = manifest_to_yaml(manifest)
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(output)
+        print(f"Generated {args.output} with {len(manifest.containers)} container(s).")
         return
 
     if args.command == "apply":

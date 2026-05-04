@@ -66,16 +66,28 @@ def deploy_upgrade(client: PVEClient, cfg: DeployConfig, ostemplate: str):
 
     # Restart if was running
     print(f"\n[7] Starting container ...")
+    start_ok = False
     if was_running:
-        upid = client.start()
-        client.wait_for_task(upid, label="Start")
+        try:
+            upid = client.start()
+            client.wait_for_task(upid, label="Start")
+            start_ok = True
+        except Exception as e:
+            print(f"  Start failed: {e}")
+            print(f"  Vzdump backup preserved: {backup_volid}")
     else:
         print("  Was stopped before upgrade, skipping start.")
+        start_ok = True
 
-    # Cleanup vzdump backup
-    if backup_volid:
+    # Cleanup vzdump backup only after successful start
+    if start_ok and backup_volid:
         print(f"\n[8] Cleaning up vzdump backup ...")
         client.delete_backup(backup_volid)
+
+    # Cleanup template after successful deployment
+    if start_ok:
+        print(f"\n[9] Cleaning up pulled template ...")
+        client.delete_template(ostemplate)
 
     print(f"\nDone. Container {cfg.vmid} upgraded to {cfg.image}")
 

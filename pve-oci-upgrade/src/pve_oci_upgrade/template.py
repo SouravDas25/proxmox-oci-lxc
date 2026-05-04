@@ -40,3 +40,12 @@ class TemplateMixin:
         except Exception as e:
             print(f"  Warning: could not scan storage for template: {e}")
         return f"{self.cfg.storage}:vztmpl/{base}.tar"
+
+    def delete_template(self, volid: str):
+        """Delete a template from storage after successful deployment."""
+        try:
+            storage_name = volid.split(":")[0]
+            self.api.nodes(self.node).storage(storage_name).content(volid).delete()
+            print(f"  Cleaned up template: {volid}")
+        except Exception as e:
+            print(f"  Warning: could not delete template {volid}: {e}")

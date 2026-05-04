@@ -22,16 +22,28 @@ class StorageMixin:
             for s in storages
         ]
 
-    def cleanup_old_rootfs(self, config: dict):
-        """Remove the old rootfs volume after a successful upgrade."""
-        rootfs = config.get("rootfs", "")
-        if not rootfs:
+    def cleanup_old_rootfs(self, old_config: dict):
+        """Remove the old rootfs volume after a successful upgrade, only if it differs from the new one."""
+        old_rootfs = old_config.get("rootfs", "")
+        if not old_rootfs:
             return
-        volid = rootfs.split(",")[0]
-        if ":" in volid and "vm-" in volid:
-            try:
-                print(f"  Cleaning up old rootfs volume: {volid}")
-                storage_name = volid.split(":")[0]
-                self.api.nodes(self.node).storage(storage_name).content(volid).delete()
-            except Exception as e:
-                print(f"  Warning: could not remove old rootfs volume {volid}: {e}")
+        old_volid = old_rootfs.split(",")[0]
+        if ":" not in old_volid or "vm-" not in old_volid:
+            return
+
+        # Check new container's rootfs — skip if same volume was reused
+        try:
+            new_config = self.api.nodes(self.node).lxc(self.cfg.vmid).config.get()
+            new_volid = new_config.get("rootfs", "").split(",")[0]
+            if old_volid == new_volid:
+                print(f"  Skipping rootfs cleanup: volume {old_volid} is reused by new container.")
+                return
+        except Exception:
+            pass
+
+        try:
+            print(f"  Cleaning up old rootfs volume: {old_volid}")
+            storage_name = old_volid.split(":")[0]
+            self.api.nodes(self.node).storage(storage_name).content(old_volid).delete()
+        except Exception as e:
+            print(f"  Warning: could not remove old rootfs volume {old_volid}: {e}")
