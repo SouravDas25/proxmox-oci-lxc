@@ -7,7 +7,7 @@ auth:
 
 containers:
   - vmid: 999
-    image: docker.io/library/nginx:trixie-perl
+    image: docker.io/library/nginx:alpine
     hostname: test-nginx
     memory: 128
     swap: 128
@@ -20,4 +20,5 @@ containers:
     mp: []
     privileged: false
     purge_on_upgrade: false
-    environment: {}
+    environment:
+      Apple: "PIE"

@@ -105,7 +105,7 @@ def load_manifest(path: str) -> DeploymentManifest:
 
 def env_dict_to_proxmox(env: dict[str, str]) -> str:
     """Convert environment dict to Proxmox comma-separated format."""
-    return ",".join(f"{k}={v}" for k, v in env.items())
+    return "\0".join(f"{k}={v}" for k, v in env.items())
 
 
 def container_spec_to_deploy_config(
