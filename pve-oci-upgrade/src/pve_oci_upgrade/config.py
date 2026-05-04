@@ -28,3 +28,4 @@ class DeployConfig:
     start_after_create: bool = True
     unprivileged: bool = True
     purge_on_upgrade: bool = False
+    env: str = ""  # Proxmox env format: "KEY=val,KEY2=val2"

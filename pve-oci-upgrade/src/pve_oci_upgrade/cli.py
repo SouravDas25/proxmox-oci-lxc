@@ -28,6 +28,22 @@ def _add_common_args(parser):
                         help="Verify SSL certificate")
 
 
+def _add_manifest_auth_args(parser):
+    """Add auth args for manifest-based commands (no --vmid required)."""
+    parser.add_argument("--profile", default=None,
+                        help="Credentials profile (overrides YAML auth.profile)")
+    parser.add_argument("--host", default=None,
+                        help="Proxmox host (overrides YAML auth.host)")
+    parser.add_argument("--token-id", default=None,
+                        help="API token ID (or PVE_TOKEN_ID env)")
+    parser.add_argument("--token-secret", default=None,
+                        help="API token secret (or PVE_TOKEN_SECRET env)")
+    parser.add_argument("--node", default=None,
+                        help="Proxmox node (overrides YAML auth.node)")
+    parser.add_argument("--verify-ssl", action="store_true", default=None,
+                        help="Verify SSL certificate")
+
+
 def _resolve_auth(args) -> tuple[str, str, str, str | None, bool]:
     """Resolve host, token_id, token_secret, node, verify_ssl.
     Priority: CLI flag > env var > credentials file."""
@@ -57,12 +73,52 @@ def _resolve_auth(args) -> tuple[str, str, str, str | None, bool]:
     return host, token_id, token_secret, node or None, verify_ssl
 
 
+def _resolve_auth_from_manifest(args, auth_config) -> tuple[str, str, str, str | None, bool]:
+    """Resolve auth for manifest commands.
+    Priority: CLI flag > env var > credentials file (profile from CLI or YAML)."""
+    profile = args.profile or auth_config.profile or "default"
+    creds = load_credentials(profile)
+
+    host = args.host or os.environ.get("PVE_HOST") or auth_config.host or creds.get("host")
+    token_id = args.token_id or os.environ.get("PVE_TOKEN_ID") or creds.get("token_id")
+    token_secret = args.token_secret or os.environ.get("PVE_TOKEN_SECRET") or creds.get("token_secret")
+    node = args.node or os.environ.get("PVE_NODE") or auth_config.node or creds.get("node")
+
+    if not host:
+        sys.exit("Error: --host, PVE_HOST env, YAML auth.host, or 'host' in ~/.pve/credentials is required.")
+    if not token_id:
+        sys.exit("Error: --token-id, PVE_TOKEN_ID env, or 'token_id' in ~/.pve/credentials is required.")
+    if not token_secret:
+        sys.exit("Error: --token-secret, PVE_TOKEN_SECRET env, or 'token_secret' in ~/.pve/credentials is required.")
+
+    if args.verify_ssl is not None:
+        verify_ssl = args.verify_ssl
+    elif os.environ.get("PVE_VERIFY_SSL", "").lower() == "true":
+        verify_ssl = True
+    elif creds.get("verify_ssl") == "true":
+        verify_ssl = True
+    else:
+        verify_ssl = False
+
+    return host, token_id, token_secret, node or None, verify_ssl
+
+
 def parse_args():
     p = argparse.ArgumentParser(
         description="Deploy & upgrade OCI-based LXC containers on Proxmox VE 9.1+",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = p.add_subparsers(dest="command", required=True)
+
+    # -- apply subcommand ---------------------------------------------------
+    ap = sub.add_parser("apply", help="Deploy/upgrade containers from a YAML file")
+    ap.add_argument("file", help="Path to YAML configuration file")
+    _add_manifest_auth_args(ap)
+    ap.add_argument("--poll-timeout", type=int, default=300)
+
+    # -- validate subcommand ------------------------------------------------
+    vp = sub.add_parser("validate", help="Validate a YAML configuration file")
+    vp.add_argument("file", help="Path to YAML configuration file")
 
     # -- deploy subcommand --------------------------------------------------
     dp = sub.add_parser("deploy", help="Create or upgrade a container from an OCI image")
@@ -86,8 +142,6 @@ def parse_args():
     dp.add_argument("--mp0", help="Mount point 0, e.g. /data,mp=/app/data")
     dp.add_argument("--mp1", help="Mount point 1 (optional)")
     dp.add_argument("--mp2", help="Mount point 2 (optional)")
-    # --unprivileged is the default; only --privileged flips it
-    # No explicit --unprivileged flag needed (it's always true unless --privileged)
     dp.add_argument("--privileged", action="store_true",
                     help="Create as privileged container")
     dp.add_argument("--no-start", action="store_true",
@@ -108,9 +162,23 @@ def parse_args():
 
     # -- destroy subcommand -------------------------------------------------
     ds = sub.add_parser("destroy", help="Stop and destroy a container")
-    _add_common_args(ds)
+    ds.add_argument("-f", "--file", default=None,
+                    help="YAML file with containers to destroy (mutually exclusive with --vmid)")
+    ds.add_argument("--vmid", type=int, default=None, help="Container VMID")
     ds.add_argument("--purge", action="store_true",
                     help="Also remove replication jobs and firewall refs")
+    ds.add_argument("--profile", default="default",
+                    help="Credentials profile from ~/.pve/credentials (default: default)")
+    ds.add_argument("--host", default=None,
+                    help="Proxmox host (or PVE_HOST env, or ~/.pve/credentials)")
+    ds.add_argument("--token-id", default=None,
+                    help="API token ID, e.g. user@pam!tokenname (or PVE_TOKEN_ID env)")
+    ds.add_argument("--token-secret", default=None,
+                    help="API token secret (or PVE_TOKEN_SECRET env)")
+    ds.add_argument("--node", default=None,
+                    help="Proxmox node (auto-detected if omitted)")
+    ds.add_argument("--verify-ssl", action="store_true", default=None,
+                    help="Verify SSL certificate")
 
     # -- init subcommand ----------------------------------------------------
     ip = sub.add_parser("init", help="Create ~/.pve/credentials file interactively")
@@ -127,6 +195,82 @@ def main():
         init_credentials(args.profile)
         return
 
+    if args.command == "apply":
+        from .manifest import load_manifest
+        from .apply import apply_manifest
+
+        try:
+            manifest = load_manifest(args.file)
+        except FileNotFoundError as e:
+            sys.exit(f"Error: {e}")
+
+        host, token_id, token_secret, node, verify_ssl = _resolve_auth_from_manifest(
+            args, manifest.auth)
+        apply_manifest(manifest, host, token_id, token_secret, node, verify_ssl,
+                       poll_timeout=args.poll_timeout)
+        return
+
+    if args.command == "validate":
+        from .manifest import load_manifest
+        from .validate import validate_manifest
+
+        try:
+            manifest = load_manifest(args.file)
+        except FileNotFoundError as e:
+            sys.exit(f"Error: {e}")
+
+        errors = validate_manifest(manifest)
+        if errors:
+            print(f"Invalid: {args.file}\n")
+            print("Errors:")
+            for e in errors:
+                print(f"  - {e}")
+            sys.exit(2)
+        else:
+            vmids = ", ".join(str(c.vmid) for c in manifest.containers)
+            print(f"Valid: {args.file}")
+            print(f"  {len(manifest.containers)} containers defined")
+            if vmids:
+                print(f"  VMIDs: {vmids}")
+        return
+
+    if args.command == "destroy":
+        # File-based destroy
+        if args.file:
+            if args.vmid:
+                sys.exit("Error: -f/--file and --vmid are mutually exclusive.")
+            from .manifest import load_manifest
+            from .apply import destroy_from_manifest
+
+            try:
+                manifest = load_manifest(args.file)
+            except FileNotFoundError as e:
+                sys.exit(f"Error: {e}")
+
+            host, token_id, token_secret, node, verify_ssl = _resolve_auth_from_manifest(
+                args, manifest.auth)
+            destroy_from_manifest(manifest, host, token_id, token_secret, node, verify_ssl,
+                                  purge=args.purge)
+            return
+
+        # Single-container destroy (existing behavior)
+        if not args.vmid:
+            sys.exit("Error: either --vmid or -f/--file is required.")
+
+        host, token_id, token_secret, node, verify_ssl = _resolve_auth(args)
+        cfg = DeployConfig(
+            host=host,
+            token_id=token_id,
+            token_secret=token_secret,
+            vmid=args.vmid,
+            image="",
+            node=node,
+            verify_ssl=verify_ssl,
+        )
+        destroy_container(cfg, purge=args.purge)
+        return
+
+    # Commands that use _add_common_args (deploy, rollback)
     host, token_id, token_secret, node, verify_ssl = _resolve_auth(args)
 
     if args.command == "deploy":
@@ -178,18 +322,6 @@ def main():
             verify_ssl=verify_ssl,
         )
         rollback(cfg, args.backup_file, args.template, no_start=args.no_start)
-
-    elif args.command == "destroy":
-        cfg = DeployConfig(
-            host=host,
-            token_id=token_id,
-            token_secret=token_secret,
-            vmid=args.vmid,
-            image="",
-            node=node,
-            verify_ssl=verify_ssl,
-        )
-        destroy_container(cfg, purge=args.purge)
 
 
 if __name__ == "__main__":

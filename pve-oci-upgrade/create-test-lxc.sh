@@ -9,7 +9,9 @@ NODE="kiki"
 IMAGE="docker.io/library/alpine:latest"
 HOSTNAME="test-alpine"
 MEMORY=128
+SWAP=128
 CORES=1
+NET0="name=eth0,bridge=vmbr0,ip=dhcp"
 # STORAGE="local"             # template/image storage — leave unset to pick interactively
 # ROOTFS_STORAGE="local-lvm"  # leave unset to pick interactively
 
@@ -21,4 +23,6 @@ pve-oci deploy \
     --image "$IMAGE" \
     --hostname "$HOSTNAME" \
     --memory "$MEMORY" \
-    --cores "$CORES"
+    --swap "$SWAP" \
+    --cores "$CORES" \
+    --net0 "$NET0"

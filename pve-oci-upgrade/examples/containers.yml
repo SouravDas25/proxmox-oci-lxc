@@ -1,0 +1,52 @@
+# Example: Multi-container deployment for pve-oci
+#
+# Usage:
+#   pve-oci apply containers.yml       # deploy/upgrade all containers
+#   pve-oci validate containers.yml    # check YAML without deploying
+#   pve-oci destroy -f containers.yml  # destroy all containers
+
+auth:
+  profile: default          # credentials profile from ~/.pve/credentials
+  # host: 192.168.1.10      # optional: override host
+  # node: pve1              # optional: target node
+
+defaults:
+  storage: local
+  rootfs_storage: local-lvm
+  memory: 512
+  swap: 256
+  cores: 1
+  rootfs_size: 8
+
+containers:
+  - vmid: 100
+    image: docker.io/library/nginx:latest
+    hostname: web1
+    memory: 1024
+    cores: 2
+    net:
+      - name=eth0,bridge=vmbr0,ip=dhcp
+    mp:
+      - /mnt/data/web1,mp=/var/www/html
+    environment:
+      NGINX_HOST: example.com
+      NGINX_PORT: "80"
+
+  - vmid: 101
+    image: docker.io/library/redis:7
+    hostname: cache1
+    net:
+      - name=eth0,bridge=vmbr0,ip=dhcp
+
+  - vmid: 102
+    image: docker.io/library/postgres:16
+    hostname: db1
+    memory: 2048
+    cores: 2
+    mp:
+      - /mnt/data/postgres,mp=/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: myapp
+    net:
+      - name=eth0,bridge=vmbr0,ip=dhcp

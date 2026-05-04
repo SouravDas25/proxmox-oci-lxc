@@ -109,6 +109,8 @@ class PVEClient(StorageMixin, BackupMixin, TemplateMixin):
             params[key] = val
         for key, val in self.cfg.mp.items():
             params[key] = val
+        if self.cfg.env:
+            params["env"] = self.cfg.env
         return self.api.nodes(self.node).lxc.create(**params)
 
     def wait_for_task(self, upid: str, label: str = "task"):

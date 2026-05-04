@@ -2,7 +2,9 @@
 
 Deploy & upgrade OCI-based LXC containers on Proxmox VE 9.1+, no Docker needed.
 
-Single `deploy` command — creates the container if it doesn't exist, upgrades it if it does.
+Two ways to deploy:
+- **YAML file** (recommended) — declare all containers in one file, deploy with `pve-oci apply`
+- **CLI flags** — deploy a single container with `pve-oci deploy`
 
 ## Install
 
@@ -57,7 +59,85 @@ export PVE_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 These override values from the credentials file.
 
-## Usage
+## YAML Deployment (recommended)
+
+Define your containers in a YAML file, similar to docker-compose:
+
+```yaml
+# containers.yml
+defaults:
+  storage: local
+  rootfs_storage: local-lvm
+  memory: 512
+
+containers:
+  - vmid: 100
+    image: docker.io/library/nginx:latest
+    hostname: web1
+    memory: 1024
+    cores: 2
+    net:
+      - name=eth0,bridge=vmbr0,ip=dhcp
+    mp:
+      - /mnt/data/web1,mp=/var/www/html
+    environment:
+      NGINX_HOST: example.com
+
+  - vmid: 101
+    image: docker.io/library/redis:7
+    hostname: cache1
+    net:
+      - name=eth0,bridge=vmbr0,ip=dhcp
+```
+
+### Apply (deploy/upgrade)
+
+```bash
+pve-oci apply containers.yml
+```
+
+Creates containers that don't exist, upgrades those that do.
+
+### Validate
+
+```bash
+pve-oci validate containers.yml
+```
+
+Check YAML syntax and schema without deploying.
+
+### Destroy all
+
+```bash
+pve-oci destroy -f containers.yml --purge
+```
+
+### YAML reference
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `vmid` | required | Container VMID |
+| `image` | required | OCI image reference |
+| `hostname` | — | Container hostname |
+| `memory` | 512 | Memory in MB |
+| `swap` | 256 | Swap in MB |
+| `cores` | 1 | CPU cores |
+| `rootfs_size` | 8 | Root disk size in GB |
+| `storage` | — | Template storage |
+| `rootfs_storage` | — | Container rootfs storage |
+| `net` | — | List of network configs |
+| `mp` | — | List of mount points |
+| `privileged` | false | Run as privileged container |
+| `purge_on_upgrade` | false | Purge volumes on upgrade |
+| `environment` | — | Key-value environment variables |
+
+Top-level `defaults` section applies to all containers unless overridden.
+Optional `auth` section can set `profile`, `host`, and `node`.
+
+See `examples/containers.yml` for a full example.
+
+## CLI Usage (single container)
+
 
 ### First deploy (creates the container)
 
