@@ -27,7 +27,7 @@ EOF
     exit 0
 }
 
-MODE="editable"
+MODE="production"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -e|--editable)   MODE="editable"; shift ;;
