@@ -113,7 +113,12 @@ class PVEClient(StorageMixin, BackupMixin, TemplateMixin):
         return self.api.nodes(self.node).lxc.create(**params)
 
     def apply_env(self):
-        """Merge user environment variables with OCI image defaults."""
+        """Add manifest env vars that aren't already set on the container.
+
+        The deployed container's env is the source of truth: existing values are
+        never overwritten. Manifest keys only fill in variables that are missing
+        (e.g. a new var introduced by a newer app version).
+        """
         if not self.cfg.env:
             return
         print(f"  Setting environment variables ...")
@@ -127,7 +132,7 @@ class PVEClient(StorageMixin, BackupMixin, TemplateMixin):
         for entry in self.cfg.env.split("\0"):
             if "=" in entry:
                 k, v = entry.split("=", 1)
-                env_dict[k] = v
+                env_dict.setdefault(k, v)  # only add if not already on the container
         merged = "\0".join(f"{k}={v}" for k, v in env_dict.items())
         self.api.nodes(self.node).lxc(self.cfg.vmid).config.put(env=merged)
 
